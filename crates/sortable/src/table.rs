@@ -1,47 +1,59 @@
-//! The public [`Table`] type: natively stored, tuple-typed rows.
+//! The public [`Table`] type: natively stored, schema-typed rows.
 
 use crate::column::{ColumnKind, ColumnType};
-use crate::row::Row;
+use crate::row::NamedRow;
 
-/// A typed, row-oriented table whose row type is a tuple.
+/// A typed, row-oriented table whose row type carries a compile-time schema
+/// (see [`NamedRow`]).
 ///
-/// `Table<(u32, String, i64)>` stores rows of three columns. The schema's
-/// only runtime data is the column names given to [`Table::new`]; the kinds
-/// are derived from the tuple's element types at compile time
-/// ([`Table::kinds`]). Rows are stored natively as `R`, so typed reads are
-/// borrowed and clone-free, pushes cannot fail, and there is no runtime
-/// validation.
+/// Rows are stored natively as `R`, so typed reads are borrowed and
+/// clone-free, pushes cannot fail, and there is no runtime validation.
 ///
 /// # Examples
 ///
 /// ```
-/// use sortable::{row, Table};
+/// # #[cfg(feature = "derive")] {
+/// use sortable::{NamedRow, Table};
 ///
-/// let mut table = Table::<(u32, String, i64)>::new(["uid", "user", "ppid"]);
-/// table.push(row![0u32, "root", 1]);
+/// #[derive(NamedRow)]
+/// struct Process {
+///     uid: u32,
+///     user: String,
+///     ppid: i64,
+/// }
 ///
-/// assert_eq!(table.row(0), Some(&(0, "root".to_string(), 1)));
+/// // Empty table; headers are the field names: "uid", "user", "ppid".
+/// let mut table = Table::<Process>::default();
+/// table.push(Process {
+///     uid: 0,
+///     user: "root".to_string(),
+///     ppid: 1,
+/// });
+///
+/// assert_eq!(table.row(0).map(|r| r.user.as_str()), Some("root"));
 /// assert_eq!(table.get_as::<u32>(0, 0), Some(&0));
+/// # }
 /// ```
-pub struct Table<R: Row> {
+pub struct Table<R: NamedRow> {
     names: Vec<String>,
     rows: Vec<R>,
 }
 
-impl<R: Row> Table<R> {
-    /// Creates a table from column names; the kinds come from `R`.
+impl<R: NamedRow> Table<R> {
+    /// Creates an empty table with custom column names, overriding
+    /// [`NamedRow::NAMES`] (e.g. user-chosen headers).
     ///
     /// # Panics
     ///
-    /// Panics if the number of names differs from the row tuple's arity.
+    /// Panics if the number of names differs from the row's arity.
     pub fn new(names: impl IntoIterator<Item = impl Into<String>>) -> Self {
         let names: Vec<String> = names.into_iter().map(Into::into).collect();
         assert_eq!(
             names.len(),
-            R::KINDS.len(),
+            R::NAMES.len(),
             "column name count ({}) must match row arity ({})",
             names.len(),
-            R::KINDS.len()
+            R::NAMES.len()
         );
         Self {
             names,
@@ -49,9 +61,13 @@ impl<R: Row> Table<R> {
         }
     }
 
-    /// Appends a typed row. Cannot fail: the kinds are fixed by `R`.
-    pub fn push(&mut self, row: R) {
-        self.rows.push(row);
+    /// Appends a row.
+    ///
+    /// Accepts anything convertible into `R`: an `R` itself, or the tuple of
+    /// field values built by [`row!`](crate::row) — `#[derive(NamedRow)]`
+    /// generates the `From` impl bridging the two.
+    pub fn push(&mut self, row: impl Into<R>) {
+        self.rows.push(row.into());
     }
 
     /// Borrows the row at `index`.
@@ -67,6 +83,12 @@ impl<R: Row> Table<R> {
     /// All rows as a contiguous slice.
     pub fn as_slice(&self) -> &[R] {
         &self.rows
+    }
+
+    /// Consumes the table and returns the rows as a `Vec<R>` — e.g. after
+    /// sorting, the same process list in a different order.
+    pub fn into_rows(self) -> Vec<R> {
+        self.rows
     }
 
     /// Borrows a single cell as its Rust type.
@@ -92,7 +114,7 @@ impl<R: Row> Table<R> {
         self.names.iter().position(|n| n.as_str() == name)
     }
 
-    /// Number of columns (the row tuple's arity).
+    /// Number of columns (the row's arity).
     pub fn column_len(&self) -> usize {
         self.names.len()
     }
@@ -107,40 +129,100 @@ impl<R: Row> Table<R> {
     }
 }
 
+impl<R: NamedRow> Default for Table<R> {
+    /// An empty table using `R`'s compile-time column names
+    /// ([`NamedRow::NAMES`]).
+    fn default() -> Self {
+        Self::new(R::NAMES.iter().copied())
+    }
+}
+
+impl<R: NamedRow> From<Vec<R>> for Table<R> {
+    /// A table pre-filled with `rows`, using `R`'s compile-time column names.
+    fn from(rows: Vec<R>) -> Self {
+        Self {
+            names: R::NAMES.iter().map(|&n| n.to_string()).collect(),
+            rows,
+        }
+    }
+}
+
+impl<R: NamedRow> FromIterator<R> for Table<R> {
+    /// Collects rows into a table using `R`'s compile-time column names.
+    fn from_iter<I: IntoIterator<Item = R>>(iter: I) -> Self {
+        let mut table = Self::default();
+        table.extend(iter);
+        table
+    }
+}
+
+impl<R: NamedRow> Extend<R> for Table<R> {
+    fn extend<I: IntoIterator<Item = R>>(&mut self, iter: I) {
+        self.rows.extend(iter);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::column::ColumnKind;
 
-    fn sample() -> Table<(u32, String, i64)> {
-        Table::new(["uid", "user", "ppid"])
+    // Hand-written `NamedRow` impls: the derive only generates this
+    // boilerplate, so the core is tested here without the `derive` feature.
+    #[derive(Debug, PartialEq)]
+    struct Process {
+        uid: u32,
+        user: String,
+        ppid: i64,
+    }
+
+    impl NamedRow for Process {
+        const KINDS: &'static [ColumnKind] =
+            &[ColumnKind::U32, ColumnKind::String, ColumnKind::I64];
+        const NAMES: &'static [&'static str] = &["uid", "user", "ppid"];
+
+        fn cell_as<T: ColumnType>(&self, index: usize) -> Option<&T> {
+            match index {
+                0 => (&self.uid as &dyn std::any::Any).downcast_ref(),
+                1 => (&self.user as &dyn std::any::Any).downcast_ref(),
+                2 => (&self.ppid as &dyn std::any::Any).downcast_ref(),
+                _ => None,
+            }
+        }
+    }
+
+    fn root() -> Process {
+        Process {
+            uid: 0,
+            user: "root".to_string(),
+            ppid: 1,
+        }
     }
 
     #[test]
     fn push_and_read_back_typed() {
-        let mut t = sample();
-        t.push((0, "root".to_string(), 1));
+        let mut t = Table::<Process>::default();
+        t.push(root());
 
         assert_eq!(t.len(), 1);
         assert!(!t.is_empty());
-        assert_eq!(t.row(0), Some(&(0, "root".to_string(), 1)));
+        assert_eq!(t.row(0), Some(&root()));
         assert_eq!(t.get_as::<u32>(0, 0), Some(&0));
         assert_eq!(t.get_as::<String>(0, 1).map(String::as_str), Some("root"));
-        assert_eq!(t.as_slice(), &[(0, "root".to_string(), 1)]);
+        assert_eq!(t.as_slice(), &[root()]);
     }
 
     #[test]
-    fn construction_panics_on_name_arity_mismatch() {
+    fn new_with_custom_names_panics_on_arity_mismatch() {
         let result = std::panic::catch_unwind(|| {
-            let _t: Table<(u32, String)> = Table::new(["only-one"]);
+            let _t = Table::<Process>::new(["only-one"]);
         });
         assert!(result.is_err());
     }
 
     #[test]
     fn access_out_of_bounds_or_wrong_kind_is_none() {
-        let mut t = sample();
-        t.push((0, "root".to_string(), 1));
+        let mut t = Table::<Process>::default();
+        t.push(root());
 
         assert_eq!(t.get_as::<i32>(0, 0), None); // u32 cell, not i32
         assert_eq!(t.get_as::<u32>(1, 0), None); // no such row
@@ -150,28 +232,59 @@ mod tests {
 
     #[test]
     fn rows_iterate_in_insertion_order() {
-        let mut t = sample();
-        t.push((0, "root".to_string(), 1));
-        t.push((1000, "alice".to_string(), 42));
+        let mut t = Table::<Process>::default();
+        t.push(root());
+        t.push(Process {
+            uid: 1000,
+            user: "alice".to_string(),
+            ppid: 42,
+        });
 
         let rows: Vec<_> = t.rows().collect();
         assert_eq!(
             rows,
             vec![
-                &(0u32, "root".to_string(), 1i64),
-                &(1000u32, "alice".to_string(), 42i64),
+                &root(),
+                &Process {
+                    uid: 1000,
+                    user: "alice".to_string(),
+                    ppid: 42,
+                },
             ]
         );
         assert_eq!(t.rows().len(), 2);
     }
 
+    #[derive(Debug, PartialEq)]
+    struct Tty {
+        pid: u32,
+        tty: Option<String>,
+    }
+
+    impl NamedRow for Tty {
+        const KINDS: &'static [ColumnKind] =
+            &[ColumnKind::U32, ColumnKind::Optional(&ColumnKind::String)];
+        const NAMES: &'static [&'static str] = &["pid", "tty"];
+
+        fn cell_as<T: ColumnType>(&self, index: usize) -> Option<&T> {
+            match index {
+                0 => (&self.pid as &dyn std::any::Any).downcast_ref(),
+                1 => (&self.tty as &dyn std::any::Any).downcast_ref(),
+                _ => None,
+            }
+        }
+    }
+
     #[test]
     fn option_columns_round_trip() {
-        let mut t = Table::<(u32, Option<String>)>::new(["pid", "tty"]);
-        t.push((3, None));
-        t.push((2663, Some("pts/0".to_string())));
+        let mut t = Table::<Tty>::default();
+        t.push(Tty { pid: 3, tty: None });
+        t.push(Tty {
+            pid: 2663,
+            tty: Some("pts/0".to_string()),
+        });
 
-        assert_eq!(t.row(0), Some(&(3, None)));
+        assert_eq!(t.row(0), Some(&Tty { pid: 3, tty: None }));
         assert_eq!(
             t.get_as::<Option<String>>(1, 1),
             Some(&Some("pts/0".to_string()))
@@ -182,11 +295,22 @@ mod tests {
 
     #[test]
     fn column_lookup_by_name() {
-        let t = sample();
+        let t = Table::<Process>::default();
         assert_eq!(t.column_index("user"), Some(1));
         assert_eq!(t.column_index("nope"), None);
         assert_eq!(t.names()[2], "ppid");
         assert_eq!(t.kinds()[2], ColumnKind::I64);
         assert_eq!(t.column_len(), 3);
+    }
+
+    #[test]
+    fn from_and_collect_prefill_rows() {
+        let rows = vec![root(), root()];
+        let t = Table::from(rows);
+        assert_eq!(t.names(), ["uid", "user", "ppid"]);
+        assert_eq!(t.len(), 2);
+
+        let collected: Table<Process> = vec![root()].into_iter().collect();
+        assert_eq!(collected.row(0), Some(&root()));
     }
 }
