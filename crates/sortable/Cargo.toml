@@ -1,0 +1,16 @@
+[package]
+name = "sortable"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["derive"]
+derive = ["dep:sortable-derive"]
+
+[dependencies]
+sortable-derive = { path = "../sortable-derive", version = "0.1.0", optional = true }
+
+[[example]]
+name = "simple_table"
+path = "../../examples/simple_table.rs"

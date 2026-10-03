@@ -13,3 +13,6 @@ mod table;
 pub use column::{ColumnKind, ColumnType};
 pub use row::Row;
 pub use table::Table;
+
+#[cfg(feature = "derive")]
+pub use sortable_derive::NamedRow;

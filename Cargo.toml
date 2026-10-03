@@ -1,7 +1,7 @@
-[package]
-name = "sortable"
+[workspace]
+members = ["crates/sortable", "crates/sortable-derive"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-
-[dependencies]
