@@ -5,6 +5,7 @@
 //! everything below the struct is exactly what `#[derive(NamedRow)]` would
 //! generate for you — the `NamedRow` impl (column kinds, headers, typed
 //! cell access) and the `From` impl bridging a `row!` tuple into the struct.
+//! For the concise derived version, see `derive_table.rs`.
 //!
 //! Run with: cargo run -p sortable --example simple_table
 

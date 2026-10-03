@@ -14,3 +14,8 @@ sortable-derive = { path = "../sortable-derive", version = "0.1.0", optional = t
 [[example]]
 name = "simple_table"
 path = "../../examples/simple_table.rs"
+
+[[example]]
+name = "derive_table"
+path = "../../examples/derive_table.rs"
+required-features = ["derive"]
