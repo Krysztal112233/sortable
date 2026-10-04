@@ -1,5 +1,6 @@
 //! Column-level type machinery: kinds and their mapping from Rust types.
 
+use std::cmp::Ordering;
 use std::fmt;
 
 /// Type tag of a column: which Rust type its cells hold. Derived from the
@@ -24,30 +25,47 @@ impl fmt::Display for ColumnKind {
 
 /// A Rust type mapping to exactly one [`ColumnKind`], used for typed
 /// borrowed access to cell values and for deriving a table's column kinds.
-/// All implementors are owned, `'static`, cloneable types.
+/// All implementors are owned, `'static`, cloneable, totally ordered types.
 pub trait ColumnType: Sized + 'static + Clone {
     const KIND: ColumnKind;
+
+    /// Total order used for sorting: floats compare via `total_cmp` (NaN
+    /// has a defined place); `None` sorts before `Some`.
+    fn cmp(a: &Self, b: &Self) -> Ordering;
 }
 
 macro_rules! impl_column_type {
-   ($($t:ty => $variant:ident),* $(,)?) => {$(
+   ($($t:ty => $variant:ident via $cmp:path),* $(,)?) => {$(
        impl ColumnType for $t {
            const KIND: ColumnKind = ColumnKind::$variant;
+
+           fn cmp(a: &Self, b: &Self) -> Ordering { $cmp(a, b) }
        }
    )*};
 }
 
 impl_column_type! {
-    f64 => F64, f32 => F32,
-    i128 => I128, i16 => I16, i32 => I32, i64 => I64, i8 => I8, isize => ISize,
-    u128 => U128, u16 => U16, u32 => U32, u64 => U64, u8 => U8, usize => USize,
-    bool => Bool,
-    String => String,
+    f64 => F64 via f64::total_cmp, f32 => F32 via f32::total_cmp,
+    i128 => I128 via Ord::cmp, i16 => I16 via Ord::cmp, i32 => I32 via Ord::cmp,
+    i64 => I64 via Ord::cmp, i8 => I8 via Ord::cmp, isize => ISize via Ord::cmp,
+    u128 => U128 via Ord::cmp, u16 => U16 via Ord::cmp, u32 => U32 via Ord::cmp,
+    u64 => U64 via Ord::cmp, u8 => U8 via Ord::cmp, usize => USize via Ord::cmp,
+    bool => Bool via Ord::cmp,
+    String => String via Ord::cmp,
 }
 
 /// `Option<T>` cells are nullable; the kind wraps the inner kind.
 impl<T: ColumnType> ColumnType for Option<T> {
     const KIND: ColumnKind = ColumnKind::Optional(&T::KIND);
+
+    fn cmp(a: &Self, b: &Self) -> Ordering {
+        match (a, b) {
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => Ordering::Less,
+            (Some(_), None) => Ordering::Greater,
+            (Some(x), Some(y)) => T::cmp(x, y),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -64,6 +82,19 @@ mod tests {
         assert_eq!(
             <Option<Option<String>> as ColumnType>::KIND,
             ColumnKind::Optional(&ColumnKind::Optional(&ColumnKind::String))
+        );
+    }
+
+    #[test]
+    fn cmp_orders_floats_totally_and_none_first() {
+        assert_eq!(<f64 as ColumnType>::cmp(&1.0, &f64::NAN), Ordering::Less);
+        assert_eq!(
+            <Option<i32> as ColumnType>::cmp(&None, &Some(0)),
+            Ordering::Less
+        );
+        assert_eq!(
+            <Option<i32> as ColumnType>::cmp(&Some(1), &Some(2)),
+            Ordering::Less
         );
     }
 }
