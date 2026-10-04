@@ -8,7 +8,7 @@ use std::fmt;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[rustfmt::skip]
 pub enum ColumnKind {
-    F64, F32,
+    F64,  F32,
     I128, I16, I32, I64, I8, ISize,
     U128, U16, U32, U64, U8, USize,
     String,
@@ -44,13 +44,14 @@ macro_rules! impl_column_type {
    )*};
 }
 
+#[rustfmt::skip]
 impl_column_type! {
-    f64 => F64 via f64::total_cmp, f32 => F32 via f32::total_cmp,
-    i128 => I128 via Ord::cmp, i16 => I16 via Ord::cmp, i32 => I32 via Ord::cmp,
-    i64 => I64 via Ord::cmp, i8 => I8 via Ord::cmp, isize => ISize via Ord::cmp,
-    u128 => U128 via Ord::cmp, u16 => U16 via Ord::cmp, u32 => U32 via Ord::cmp,
-    u64 => U64 via Ord::cmp, u8 => U8 via Ord::cmp, usize => USize via Ord::cmp,
-    bool => Bool via Ord::cmp,
+    f64    =>    F64 via f64::total_cmp, f32 => F32 via f32::total_cmp,
+    i128   =>   I128 via Ord::cmp,       i16 => I16 via Ord::cmp,       i32   =>   I32 via Ord::cmp,
+    i64    =>    I64 via Ord::cmp,       i8  =>  I8 via Ord::cmp,       isize => ISize via Ord::cmp,
+    u128   =>   U128 via Ord::cmp,       u16 => U16 via Ord::cmp,       u32   =>   U32 via Ord::cmp,
+    u64    =>    U64 via Ord::cmp,       u8  =>  U8 via Ord::cmp,       usize => USize via Ord::cmp,
+    bool   =>   Bool via Ord::cmp,
     String => String via Ord::cmp,
 }
 
