@@ -5,13 +5,16 @@
 //! names — from the fields. [`Table`] stores rows natively as `R`, so
 //! everything is statically typed: pushes cannot fail and reads are
 //! borrowed. Sorting (sort-spec parsing, comparators) is intentionally not
-//! implemented yet.
+//! implemented yet. [`Projection`] borrows a table with a runtime-selected
+//! column list.
 
 mod column;
+mod projection;
 mod row;
 mod table;
 
 pub use column::{ColumnKind, ColumnType};
+pub use projection::Projection;
 pub use row::NamedRow;
 pub use table::Table;
 

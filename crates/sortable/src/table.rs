@@ -1,6 +1,7 @@
 //! The public [`Table`] type: natively stored, schema-typed rows.
 
 use crate::column::{ColumnKind, ColumnType};
+use crate::projection::Projection;
 use crate::row::NamedRow;
 
 /// A typed, row-oriented table whose row type carries a compile-time schema
@@ -34,6 +35,7 @@ use crate::row::NamedRow;
 /// assert_eq!(table.get_as::<u32>(0, 0), Some(&0));
 /// # }
 /// ```
+#[derive(Debug)]
 pub struct Table<R: NamedRow> {
     names: Vec<String>,
     rows: Vec<R>,
@@ -97,6 +99,22 @@ impl<R: NamedRow> Table<R> {
     /// does not match `T`.
     pub fn get_as<T: ColumnType>(&self, row: usize, column: usize) -> Option<&T> {
         self.rows.get(row)?.cell_as(column)
+    }
+
+    /// Selects columns by header name for display or further runtime
+    /// reading, resolving each name once. Returns `None` if any name is
+    /// unknown.
+    ///
+    /// The returned [`Projection`] only borrows this table; see its docs.
+    pub fn project(
+        &self,
+        names: impl IntoIterator<Item = impl AsRef<str>>,
+    ) -> Option<Projection<'_, R>> {
+        let columns = names
+            .into_iter()
+            .map(|name| self.column_index(name.as_ref()))
+            .collect::<Option<Vec<_>>>()?;
+        Some(Projection::new(self, columns))
     }
 
     /// The column names, in order.
