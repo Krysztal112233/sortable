@@ -1,7 +1,7 @@
 //! End-to-end test of the `NamedRow` derive (requires the `derive` feature).
 #![cfg(feature = "derive")]
 
-use sortable::{ColumnKind, NamedRow, Table, row};
+use sortable::{ColumnKind, NamedRow, SortDirection, Table, row};
 
 #[derive(NamedRow)]
 struct Process {
@@ -35,8 +35,11 @@ fn derived_named_row_builds_table_without_names() {
     assert_eq!(table.get_as::<Option<String>>(0, 2), Some(&None));
     assert_eq!(table.column_index("tty"), Some(2));
 
-    // The procps round trip: rows come back out as plain structs.
+    // Sorting goes through the derive-generated `cmp_cell`.
+    table.sort([("uid", SortDirection::Descending)]).unwrap();
+
+    // The procps round trip: rows come back out as plain structs, reordered.
     let processes: Vec<Process> = table.into_rows();
     assert_eq!(processes.len(), 2);
-    assert_eq!(processes[1].uid, 2663);
+    assert_eq!(processes[0].uid, 2663);
 }
