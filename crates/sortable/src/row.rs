@@ -1,6 +1,7 @@
 //! Named rows: a struct type defines a table's row schema.
 
 use crate::column::{ColumnKind, ColumnType};
+use std::cmp::Ordering;
 
 /// Builds a row as a tuple of plain values.
 ///
@@ -88,4 +89,9 @@ pub trait NamedRow: Sized {
     /// Borrows the cell at `index` as `T`, or `None` if the index is out of
     /// bounds or the cell's type does not match `T`.
     fn cell_as<T: ColumnType>(&self, index: usize) -> Option<&T>;
+
+    /// Compares the cell at `index` with `other`'s using the column type's
+    /// total order ([`ColumnType::cmp`]), or `None` if the index is out of
+    /// bounds.
+    fn cmp_cell(&self, other: &Self, index: usize) -> Option<Ordering>;
 }

@@ -38,7 +38,7 @@ use crate::row::NamedRow;
 #[derive(Debug)]
 pub struct Table<R: NamedRow> {
     names: Vec<String>,
-    rows: Vec<R>,
+    pub(crate) rows: Vec<R>,
 }
 
 impl<R: NamedRow> Table<R> {
@@ -206,6 +206,15 @@ mod tests {
                 _ => None,
             }
         }
+
+        fn cmp_cell(&self, other: &Self, index: usize) -> Option<std::cmp::Ordering> {
+            match index {
+                0 => Some(ColumnType::cmp(&self.uid, &other.uid)),
+                1 => Some(ColumnType::cmp(&self.user, &other.user)),
+                2 => Some(ColumnType::cmp(&self.ppid, &other.ppid)),
+                _ => None,
+            }
+        }
     }
 
     fn root() -> Process {
@@ -288,6 +297,14 @@ mod tests {
             match index {
                 0 => (&self.pid as &dyn std::any::Any).downcast_ref(),
                 1 => (&self.tty as &dyn std::any::Any).downcast_ref(),
+                _ => None,
+            }
+        }
+
+        fn cmp_cell(&self, other: &Self, index: usize) -> Option<std::cmp::Ordering> {
+            match index {
+                0 => Some(ColumnType::cmp(&self.pid, &other.pid)),
+                1 => Some(ColumnType::cmp(&self.tty, &other.tty)),
                 _ => None,
             }
         }

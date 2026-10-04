@@ -77,6 +77,21 @@ fn expand_named_row(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream
                 )*
                 ::core::option::Option::None
             }
+
+            fn cmp_cell(
+                &self,
+                other: &Self,
+                index: usize,
+            ) -> ::core::option::Option<::core::cmp::Ordering> {
+                #(
+                    if index == #indices {
+                        return ::core::option::Option::Some(
+                            <#tys as ::sortable::ColumnType>::cmp(&self.#idents, &other.#idents),
+                        );
+                    }
+                )*
+                ::core::option::Option::None
+            }
         }
 
         impl ::core::convert::From<(#(#tys,)*)> for #name {

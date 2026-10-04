@@ -101,6 +101,14 @@ mod tests {
                 _ => None,
             }
         }
+
+        fn cmp_cell(&self, other: &Self, index: usize) -> Option<std::cmp::Ordering> {
+            match index {
+                0 => Some(ColumnType::cmp(&self.pid, &other.pid)),
+                1 => Some(ColumnType::cmp(&self.user, &other.user)),
+                _ => None,
+            }
+        }
     }
 
     fn table() -> Table<Process> {

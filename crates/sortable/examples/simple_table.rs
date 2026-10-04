@@ -11,6 +11,7 @@
 
 use sortable::{ColumnKind, ColumnType, NamedRow, Table, row};
 use std::any::Any;
+use std::cmp::Ordering;
 
 /// The row type is a plain struct. It is the input *and* output type of the
 /// whole pipeline: build a table from process data, sort it (a later
@@ -55,6 +56,20 @@ impl NamedRow for Process {
             4 => (&self.tty as &dyn Any).downcast_ref(),
             5 => (&self.stat as &dyn Any).downcast_ref(),
             6 => (&self.comm as &dyn Any).downcast_ref(),
+            _ => None,
+        }
+    }
+
+    // Per-column comparison via the column type's total order.
+    fn cmp_cell(&self, other: &Self, index: usize) -> Option<Ordering> {
+        match index {
+            0 => Some(ColumnType::cmp(&self.uid, &other.uid)),
+            1 => Some(ColumnType::cmp(&self.user, &other.user)),
+            2 => Some(ColumnType::cmp(&self.ppid, &other.ppid)),
+            3 => Some(ColumnType::cmp(&self.pid, &other.pid)),
+            4 => Some(ColumnType::cmp(&self.tty, &other.tty)),
+            5 => Some(ColumnType::cmp(&self.stat, &other.stat)),
+            6 => Some(ColumnType::cmp(&self.comm, &other.comm)),
             _ => None,
         }
     }
