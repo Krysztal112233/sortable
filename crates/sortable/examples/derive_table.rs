@@ -1,5 +1,6 @@
 //! The same `ps`-like table as `simple_table.rs`, but with the row schema
 //! derived instead of hand-written — this file is the entire definition.
+//! For runtime column selection, see `projection.rs`.
 //!
 //! Run with: cargo run -p sortable --example derive_table
 
