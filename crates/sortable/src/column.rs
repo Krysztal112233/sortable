@@ -3,7 +3,7 @@
 use std::fmt;
 
 /// Type tag of a column: which Rust type its cells hold. Derived from the
-/// row type at compile time (see [`Row::KINDS`](crate::Row::KINDS)).
+/// row type at compile time (see [`NamedRow::KINDS`](crate::NamedRow::KINDS)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[rustfmt::skip]
 pub enum ColumnKind {
